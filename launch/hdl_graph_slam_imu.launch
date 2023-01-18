@@ -2,32 +2,23 @@
 <launch>
   <!-- arguments -->
   <arg name="nodelet_manager" default="velodyne_nodelet_manager" />
-  <arg name="enable_imu_frontend" default="true" />
+  <arg name="enable_imu_frontend" default="false" />
   <arg name="enable_floor_detection" default="false" />
   <arg name="enable_gps" default="false" />
   <arg name="enable_imu_acc" default="false" />
   <arg name="enable_imu_ori" default="false" />
-  <arg name="points_topic" default="/velodyne_points" />
+  <arg name="points_topic" default="/cloud" />
   <arg name="imu_topic" default="/imu/data" />
 
   <!-- transformation between lidar and base_link -->
-  <node pkg="tf" type="static_transform_publisher" name="lidar2base_publisher" args="0 0 0 0 0 0 base_link velodyne 10" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="lidar2base_publisher" args="0 0 0 0 0 0 base_link velodyne 10" /> -->
   <node pkg="tf" type="static_transform_publisher" name="state2base_publisher" args="0 0 0 0 0 0 odom world 10" />
 
   <!-- in case you use velodyne_driver, comment out the following line -->
   <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"/>
 
-  <!-- IMU fusion -->
-  <node name="msf_lidar_scan_matching" pkg="msf_updates" type="pose_sensor" clear_params="true" output="screen">
-    <remap from="msf_core/hl_state_input" to="/fcu/ekf_state_out" />
-    <remap from="msf_core/correction" to="/fcu/ekf_state_in" />
-    <remap from="msf_core/imu_state_input" to="$(arg imu_topic)" />
-    <remap from="msf_updates/transform_input" to="/scan_matching_odometry/transform" />
-
-    <rosparam file="$(find hdl_graph_slam)/launch/msf_config.yaml"/>
-  </node>
-
-  <node pkg="rosservice" type="rosservice" name="initialize" args="call --wait /msf_lidar_scan_matching/pose_sensor/initialize_msf_scale 1"/>
+  <include file="$(find hdl_graph_slam)/launch/robot_localization.launch">
+  </include>
 
   <!-- prefiltering_nodelet -->
   <node pkg="nodelet" type="nodelet" name="prefiltering_nodelet" args="load hdl_graph_slam/PrefilteringNodelet $(arg nodelet_manager)" output="screen">
@@ -57,6 +48,13 @@
     <param name="enable_imu_frontend" value="$(arg enable_imu_frontend)" />
     <param name="points_topic" value="$(arg points_topic)" />
     <param name="odom_frame_id" value="odom" />
+    <param name="publish_transform" value="false"/>
+    <param name="odom_covariance_x" value="0.1"/>
+    <param name="odom_covariance_y" value="0.1"/>
+    <param name="odom_covariance_z" value="0.1"/>
+    <param name="odom_covariance_roll" value="0.1"/>
+    <param name="odom_covariance_pitch" value="0.1"/>
+    <param name="odom_covariance_yaw" value="0.1"/>
     <param name="keyframe_delta_trans" value="0.25" />
     <param name="keyframe_delta_angle" value="2.0" />
     <param name="keyframe_delta_time" value="10000.0" />

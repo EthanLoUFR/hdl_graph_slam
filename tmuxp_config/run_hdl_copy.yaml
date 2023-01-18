@@ -1,0 +1,85 @@
+# TMUX script to open all the things at once in the right order. It launches everything in this order:
+# - ROS Bridge
+# - Haulage Simulation
+# - Sets use_sim_time
+# - Whatever ROS1 package
+
+session_name: hdl_graph_slam
+
+environment:
+  # Package being bridged
+  PACKAGE: hdl_graph_slam
+  WS_PATH: ~/catkin_ws
+
+options:
+  default-command: /bin/bash
+
+windows:
+- window_name: ROS
+  focus: true
+  layout: tiled
+  shell_command_before:
+    - cd $WS_PATH
+    - sleep 1
+    - source $WS_PATH/devel/setup.bash
+    - sleep 20
+    - rosparam set /use_sim_time true
+  
+  panes:
+    # Run pointcloud merger
+    # - roslaunch pointcloud_merger sample_node.launch
+
+    # Run package
+    # - roslaunch hdl_graph_slam hdl_graph_slam.launch points_topic:=/pointcloud/merged
+    - roslaunch --screen hdl_graph_slam hdl_graph_slam_imu_copy.launch
+
+- window_name: bridge_and_haul
+  focus: false
+  layout: tiled
+  
+  panes:
+    # Launch ros bridge
+    - ~/./run_bridge.sh
+
+    # Run container
+    - ~/humble_home/./run.sh;
+
+    # Launch haulage sim
+    - sleep 10;
+      docker exec -ti humble__devel /bin/bash -c "export ROS_LOCALHOST_ONLY=1 && . /opt/ros/humble/setup.bash && source ~/ros2_ws/install/setup.bash && ros2 launch mt65_ignition simulation.launch.py"
+    
+    # Ready to kill pane
+    - killall -9 rosmaster; docker kill humble_bridge; docker kill humble__devel; tmux kill-session \
+
+
+- window_name: things
+  focus: false
+  layout: tiled
+  shell_command_before:
+    - cd $WS_PATH
+    - source $WS_PATH/devel/setup.bash
+    # - sleep 1
+    - rosparam set /use_sim_time true
+
+  panes:
+    - roscore
+
+    # Silly script to add timestamp to ground truth
+    - sleep 3; rosrun hdl_graph_slam process_truth.py
+
+    # Play bag
+    # - sleep 3;
+    #   rosbag play goodbag3.bag --clock
+
+    # Robot description
+    # - sleep 2;
+    #   rosparam set /use_sim_time true;
+    #   roslaunch robot_description robot_description.launch
+
+    # Run rviz
+    - sleep 3;
+      rviz -d $(rospack find hdl_graph_slam)/rviz/hdl_graph_slam.rviz
+
+    # Run rqt
+    - sleep 3;
+      rqt

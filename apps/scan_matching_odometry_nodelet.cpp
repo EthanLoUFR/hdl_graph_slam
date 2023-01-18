@@ -79,6 +79,17 @@ private:
     max_acceptable_trans = pnh.param<double>("max_acceptable_trans", 1.0);
     max_acceptable_angle = pnh.param<double>("max_acceptable_angle", 1.0);
 
+    // Publish transform option
+    publish_transform = private_nh.param<bool>("publish_transform", false);
+
+    // Covariance parameters
+    odom_covariance_x = pnh.param<double>("odom_covariance_x", 0.0);
+    odom_covariance_y = pnh.param<double>("odom_covariance_y", 0.0);
+    odom_covariance_z = pnh.param<double>("odom_covariance_z", 0.0);
+    odom_covariance_roll = pnh.param<double>("odom_covariance_roll", 0.0);
+    odom_covariance_pitch = pnh.param<double>("odom_covariance_pitch", 0.0);
+    odom_covariance_yaw = pnh.param<double>("odom_covariance_yaw", 0.0);
+
     // select a downsample method (VOXELGRID, APPROX_VOXELGRID, NONE)
     std::string downsample_method = pnh.param<std::string>("downsample_method", "VOXELGRID");
     double downsample_resolution = pnh.param<double>("downsample_resolution", 0.1);
@@ -173,6 +184,9 @@ private:
     }
 
     auto filtered = downsample(cloud);
+    if (filtered->points.size() <= 0) {
+      return keyframe_pose * prev_trans;
+    }
     registration->setInputSource(filtered);
 
     std::string msf_source;
@@ -268,10 +282,13 @@ private:
   void publish_odometry(const ros::Time& stamp, const std::string& base_frame_id, const Eigen::Matrix4f& pose) {
     // publish transform stamped for IMU integration
     geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, odom_frame_id, base_frame_id);
-    trans_pub.publish(odom_trans);
 
-    // broadcast the transform over tf
-    odom_broadcaster.sendTransform(odom_trans);
+    if (publish_transform) {
+      trans_pub.publish(odom_trans);
+
+      // broadcast the transform over tf
+      odom_broadcaster.sendTransform(odom_trans);
+    }
 
     // publish the transform
     nav_msgs::Odometry odom;
@@ -288,6 +305,13 @@ private:
     odom.twist.twist.linear.y = 0.0;
     odom.twist.twist.angular.z = 0.0;
 
+    odom.pose.covariance[0] = odom_covariance_x;
+    odom.pose.covariance[7] = odom_covariance_y;
+    odom.pose.covariance[14] = odom_covariance_z;
+    odom.pose.covariance[21] = odom_covariance_roll;
+    odom.pose.covariance[28] = odom_covariance_pitch;
+    odom.pose.covariance[35] = odom_covariance_yaw;
+    
     odom_pub.publish(odom);
   }
 
@@ -364,6 +388,17 @@ private:
   bool transform_thresholding;  //
   double max_acceptable_trans;  //
   double max_acceptable_angle;
+
+  // publish transform option
+  bool publish_transform;
+
+  // covariance parameter
+  double odom_covariance_x;
+  double odom_covariance_y;
+  double odom_covariance_z;
+  double odom_covariance_roll;
+  double odom_covariance_pitch;
+  double odom_covariance_yaw;
 
   // odometry calculation
   geometry_msgs::PoseWithCovarianceStampedConstPtr msf_pose;
